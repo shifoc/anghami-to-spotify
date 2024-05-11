@@ -59,12 +59,52 @@ const searchTrackOnSpotify = async (trackName, artistName) => {
     return spotifyTrackId;
 };
 
+const saveTracks = async (tracks) => {
+    const spotifyTracksId = [];
+    for (const track of tracks) {
+        try {
+            const spotifyTrackId = await searchTrackOnSpotify(track.title, track.artist);
+            spotifyTracksId.push(spotifyTrackId);
+        } catch (e) {
+            console.error(track.title + ' by ' + track.artist + ' was not found on spotify!');
+            continue;
+        }
+    }
+    const batchSize = 100;
+    const totalTracks = spotifyTracksId.length;
+    for (let i = 0; i < totalTracks; i += batchSize) {
+        const batch = tracks.slice(i, i + batchSize);
+        await spotifyApi.addToMySavedTracks(batch);
+    }
+};
+
 const uploadToSpotify = async () => {
-    console.log('Uploading playlists to Spotify...');
-    const anghamiPlaylists = JSON.parse(readFileSync('anghami.json'));
+    console.log('Checking your Anghami playlists...');
+    let anghamiPlaylists = JSON.parse(readFileSync('anghami.json'));
+    if (!Array.isArray(anghamiPlaylists)) {
+        console.error('Anghami playlists not found!');
+        return;
+    }
+    console.log('Filtering out playlists not created by you...');
+    anghamiPlaylists = anghamiPlaylists.filter(playlist => playlist.ownerID === playlist.userID && playlist.playlistName !== '$1234567890DOWNLOADED#');
+    console.log(`Uploading ${anghamiPlaylists.length} playlists to Spotify...`);
     // Create a Spotify playlist for each Anghami playlist
     for (const anghamiPlaylist of anghamiPlaylists) {
-        const spotifyPlaylistId = await createPlaylistOnSpotify(anghamiPlaylist.name);
+        if (anghamiPlaylist.playlistName === '$1234567890LIKED#') {
+            try {
+                await saveTracks(anghamiPlaylist.songs);
+                console.log('Uploaded liked tracks to Spotify!');
+            } catch (e) {
+                console.error('Error saving liked tracks:', e);
+            }
+            continue;
+        }
+        const spotifyPlaylistId = await createPlaylistOnSpotify(anghamiPlaylist.playlistName);
+        try {
+            if (anghamiPlaylist.coverArt) await spotifyApi.uploadCustomPlaylistCoverImage(spotifyPlaylistId, anghamiPlaylist.coverArt);
+        } catch (e) {
+            console.error('Error uploading playlist cover image:', e);
+        }
         const spotifyTracksId = [];
         // Loop through songs in the Anghami playlist
         for (const song of anghamiPlaylist.songs) {
@@ -79,7 +119,7 @@ const uploadToSpotify = async () => {
         // Add the track to the Spotify playlist
         await addTracksToSpotifyPlaylist(spotifyPlaylistId, spotifyTracksId);
         console.log('--------------------------------------------------------');
-        console.info(`Playlist "${anghamiPlaylist.name}" uploaded to Spotify.`);
+        console.info(`Playlist "${anghamiPlaylist.playlistName}" uploaded to Spotify.`);
         console.log('--------------------------------------------------------');
     }
 };
@@ -129,8 +169,8 @@ app.get('/callback', async (req, res) => {
         res.status(200).send('Playlists uploaded to Spotify successfully.');
         process.exit(0);
     } catch (error) {
-        console.error('Error getting Tokens:', error);
-        res.send(`Error getting Tokens: ${error}`);
+        console.error('An error happenned:', error);
+        res.send(`An error happenned: ${error}`);
     }
 });
 

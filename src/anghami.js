@@ -3,6 +3,7 @@ const puppeteer = require('puppeteer-extra');
 const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 puppeteer.use(StealthPlugin());
 const { writeFileSync } = require('fs');
+const sharp = require('sharp');
 
 const login = async () => {
     const browser = await puppeteer.launch({
@@ -20,30 +21,28 @@ const login = async () => {
     await page.goto("https://play.anghami.com/login");
 
     //choosing login type
-    await Promise.all([
-        await page.click(".other-login-btn"),
-        await delay(1000)
-    ]);
+    await page.waitForSelector(".other-login-btn");
+    await page.click(".other-login-btn");
 
     //typing email
-    const emailFieldSelector = "#ang_app > anghami - login - page > div > div.login - section > anghami - main - login > div > anghami - more - ways - login > div > div > form > span > input";
+    const emailFieldSelector = 'input[name="email"]';
     await page.waitForSelector(emailFieldSelector);
-    await page.type(emailFieldSelector, process.env.email);
+    await page.type(emailFieldSelector, process.env.ANGHAMI_EMAIL);
 
     //clicking next
-    await page.click('#ang_app > anghami - login - page > div > div.login - section > anghami - main - login > div > anghami - more - ways - login > div > div > form > button');
+    const nextButtonSelector = 'button.login-btn-continue';
+    await page.waitForSelector(nextButtonSelector);
+    await page.click(nextButtonSelector);
 
     //typing password
     const passwordFieldSelector = 'input[name="password"]';
     await page.waitForSelector(passwordFieldSelector);
-    await page.type(passwordFieldSelector, process.env.password);
+    await page.type(passwordFieldSelector, process.env.ANGHAMI_PASSWORD);
 
-    await Promise.all([
-        await page.click(
-            "#ang_app > anghami-login-page > div > div.login-section > anghami-main-login > div > anghami-fill-email-password > div > div > form > button"
-        ),
-        page.waitForNavigation({ waitUntil: "networkidle0" })
-    ]);
+    //clicking login
+    const loginButtonSelector = 'button.login-btn';
+    await page.waitForSelector(loginButtonSelector);
+    await page.click(loginButtonSelector);
 
     let sid = '';
     await page.setRequestInterception(true);
@@ -64,6 +63,7 @@ const login = async () => {
             await interceptedRequest.continue();
         }
     });
+    await page.waitForNavigation({ waitUntil: "networkidle0" });
     await browser.close();
     return sid;
 };
@@ -71,7 +71,7 @@ const login = async () => {
 const anghamiCrawler = async () => {
     let SID = process.env.ANGHAMI_SID;
     if (!SID) {
-        if (!process.env.email || !process.env.password) {
+        if (!process.env.ANGHAMI_EMAIL || !process.env.ANGHAMI_PASSWORD) {
             throw new Error('Email or password is not found');
         }
         SID = await login();
@@ -127,11 +127,40 @@ const detailsGetter = async (SID) => {
         const { data } = await axios(options);
         return data;
     };
+
+    const fetchAndEncodeImage = async (imageId) => {
+        try {
+            // Fetch the image data from the URL
+            const response = await axios.get(`https://artwork.anghcdn.co/webp/?id=${imageId}&size=296`, { responseType: 'arraybuffer' });
+            const imageData = Buffer.from(response.data, 'binary');
+
+            // Resize the image if necessary to fit the payload size limit
+            const resizedImageData = await sharp(imageData)
+                .jpeg()
+                .toBuffer();
+
+            // Convert the resized image data to Base64
+            const base64ImageData = resizedImageData.toString('base64');
+
+            return base64ImageData;
+        } catch (error) {
+            console.error('Error fetching or encoding image:', error);
+            return null;
+        }
+    }
+
     let playlists = [];
     for (const playlist of await getPlaylists()) {
         const playlistDetails = await getPlaylistDetails(playlist.id);
         const playlistDetailItem = {};
-        playlistDetailItem.name = playlistDetails.name;
+        playlistDetailItem.playlistName = playlistDetails.PlaylistName;
+        playlistDetailItem.ownerID = playlistDetails.OwnerID;
+        playlistDetailItem.userID = playlistDetails.UserID;
+        if (playlistDetails.coverartmeta === 'custom' && playlistDetails.coverArtID) {
+            playlistDetailItem.coverArt = await fetchAndEncodeImage(playlistDetails.coverArtID);
+        } else {
+            playlistDetailItem.coverArt = null;
+        }
         playlistDetailItem.songs = playlistDetails.sections.find(section => section.displaytype === 'list').data;
         playlists.push(playlistDetailItem);
     }
