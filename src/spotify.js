@@ -34,7 +34,7 @@ const spotifyApi = new SpotifyWebApi({
 // Create a playlist on Spotify
 const createPlaylistOnSpotify = async (playlistName) => {
     // Create playlist
-    const playlist = await spotifyApi.createPlaylist(playlistName, { 'public': false });
+    const playlist = await spotifyApi.createPlaylist(playlistName, { 'description': '', 'public': false });
     return playlist.body.id; // Return Spotify playlist ID
 };
 
@@ -55,25 +55,24 @@ const searchTrackOnSpotify = async (trackName, artistName) => {
     // Search for the track
     const searchResult = await spotifyApi.searchTracks(`${trackName} ${artistName}`, { limit: 1 });
     // Extract Spotify track ID from the search result
-    const spotifyTrackId = searchResult.body.tracks.items[0].uri;
-    return spotifyTrackId;
+    return searchResult.body.tracks.items[0];
 };
 
 const saveTracks = async (tracks) => {
-    const spotifyTracksId = [];
+    const spotifyTracksIds = [];
     for (const track of tracks) {
         try {
             const spotifyTrackId = await searchTrackOnSpotify(track.title, track.artist);
-            spotifyTracksId.push(spotifyTrackId);
+            spotifyTracksIds.push(spotifyTrackId.id);
         } catch (e) {
             console.error(track.title + ' by ' + track.artist + ' was not found on spotify!');
             continue;
         }
     }
     const batchSize = 100;
-    const totalTracks = spotifyTracksId.length;
+    const totalTracks = spotifyTracksIds.length;
     for (let i = 0; i < totalTracks; i += batchSize) {
-        const batch = tracks.slice(i, i + batchSize);
+        const batch = spotifyTracksIds.slice(i, i + batchSize);
         await spotifyApi.addToMySavedTracks(batch);
     }
 };
@@ -105,19 +104,19 @@ const uploadToSpotify = async () => {
         } catch (e) {
             console.error('Error uploading playlist cover image:', e);
         }
-        const spotifyTracksId = [];
+        const spotifyTracksIds = [];
         // Loop through songs in the Anghami playlist
         for (const song of anghamiPlaylist.songs) {
             try {
                 // Search for the song on Spotify
                 const spotifyTrackId = await searchTrackOnSpotify(song.title, song.artist);
-                spotifyTracksId.push(spotifyTrackId);
+                spotifyTracksIds.push(spotifyTrackId.uri);
             } catch (e) {
                 console.error(song.title + ' by ' + song.artist + ' was not found on spotify!');
             }
         }
         // Add the track to the Spotify playlist
-        await addTracksToSpotifyPlaylist(spotifyPlaylistId, spotifyTracksId);
+        await addTracksToSpotifyPlaylist(spotifyPlaylistId, spotifyTracksIds);
         console.log('--------------------------------------------------------');
         console.info(`Playlist "${anghamiPlaylist.playlistName}" uploaded to Spotify.`);
         console.log('--------------------------------------------------------');
