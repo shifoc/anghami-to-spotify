@@ -69,7 +69,7 @@ const saveTracks = async (tracks) => {
             continue;
         }
     }
-    const batchSize = 100;
+    const batchSize = 50;
     const totalTracks = spotifyTracksIds.length;
     for (let i = 0; i < totalTracks; i += batchSize) {
         const batch = spotifyTracksIds.slice(i, i + batchSize);
@@ -85,7 +85,7 @@ const uploadToSpotify = async () => {
         return;
     }
     console.log('Filtering out playlists not created by you...');
-    anghamiPlaylists = anghamiPlaylists.filter(playlist => playlist.ownerID === playlist.userID && playlist.playlistName !== '$1234567890DOWNLOADED#');
+    anghamiPlaylists = anghamiPlaylists.filter(playlist => playlist.ownerID === playlist.userID && playlist.playlistName !== '$1234567890DOWNLOADED#' && playlist.playlistName !== '$1234567890ACRED#');
     console.log(`Uploading ${anghamiPlaylists.length} playlists to Spotify...`);
     // Create a Spotify playlist for each Anghami playlist
     for (const anghamiPlaylist of anghamiPlaylists) {

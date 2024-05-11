@@ -3,13 +3,13 @@
 This script facilitates the migration of your Anghami playlists to Spotify playlists by logging into both platforms.
 
 ## Installation
-This script runs on Node.js. If you haven't already, you can install it by following the instructions on the Node.js website.
+This script runs on Node.js. If you haven't already, you can install it by following the instructions on the [Node.js website](https://nodejs.org/).
 
 ## Using Your Own Credentials
 ### Spotify:
 Register your app and obtain your credentials from the Spotify for Developers Dashboard.
 Create a new app in the dashboard and add http://localhost:3000/callback to the app's redirect URL list.
-After creating your app, update the .env file with the client ID and client secret obtained from the app settings in the dashboard.
+After creating your app, update the .env file with the client ID and client secret obtained from the app settings in the [dashboard](https://developer.spotify.com/dashboard). You should also add the user to the app's list of users in the dashboard's settings.
 ```env
 SPOTIFY_CLIENT_ID="YOUR_CLIENT_ID"
 SPOTIFY_CLIENT_SECRET="YOUR_CLIENT_SECRET"
