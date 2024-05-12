@@ -97,11 +97,15 @@ const uploadToSpotify = async () => {
         !excludedPlaylistNames.has(playlist.playlistName)
     );
     console.log(`Uploading ${anghamiPlaylists.length} playlists to Spotify...`);
+
+    let index = 1; // Start the counter at 1
+    const totalPlaylists = anghamiPlaylists.length; // Total number of playlists
+
     // Create a Spotify playlist for each Anghami playlist
     for (const anghamiPlaylist of anghamiPlaylists) {
         try {
             console.log('--------------------------------------------------------');
-            console.log('Uploading playlist:', anghamiPlaylist.playlistName, 'which has', anghamiPlaylist.songs.length, 'songs.');
+            console.log(`Uploading playlist ${index}/${totalPlaylists}:`, anghamiPlaylist.playlistName, 'which has', anghamiPlaylist.songs.length, 'songs.');
             if (anghamiPlaylist.playlistName === '$1234567890LIKED#') {
                 try {
                     await saveTracks(anghamiPlaylist.songs);
@@ -109,6 +113,7 @@ const uploadToSpotify = async () => {
                 } catch (e) {
                     console.error('Error saving liked tracks:', e);
                 }
+                index++; // Increment the counter
                 continue;
             }
             const spotifyPlaylistId = await createPlaylistOnSpotify(anghamiPlaylist.playlistName);
@@ -118,22 +123,20 @@ const uploadToSpotify = async () => {
                 console.error('Error uploading playlist cover image:', e);
             }
             const spotifyTracksIds = [];
-            // Loop through songs in the Anghami playlist
             for (const song of anghamiPlaylist.songs) {
                 try {
-                    // Search for the song on Spotify
                     const spotifyTrackId = await searchTrackOnSpotify(song.title, song.artist);
                     spotifyTracksIds.push(spotifyTrackId.uri);
                 } catch (e) {
                     console.error(song.title + ' by ' + song.artist + ' was not found on spotify!');
                 }
             }
-            // Add the track to the Spotify playlist
             await addTracksToSpotifyPlaylist(spotifyPlaylistId, spotifyTracksIds);
             console.info(`Playlist "${anghamiPlaylist.playlistName}" uploaded to Spotify.`);
         } catch (e) {
             console.error('Error uploading playlist ', anghamiPlaylist.playlistName, ':', e);
         }
+        index++;
     }
 };
 
