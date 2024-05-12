@@ -54,9 +54,6 @@ const login = async () => {
             // Extract SID from the intercepted request
             sid = new URL(interceptedRequest.url()).searchParams.get('sid');
 
-            // Save the SID for later use (You can save it to a file or variable)
-            console.log('SID:', sid);
-
             // Continue intercepting requests if needed
             await interceptedRequest.continue();
         } else {
@@ -66,6 +63,8 @@ const login = async () => {
     });
     await page.waitForNavigation({ waitUntil: "networkidle0" });
     await browser.close();
+    // Save the SID for later use (You can save it to a file or variable)
+    console.log('SID:', sid);
     return sid;
 };
 

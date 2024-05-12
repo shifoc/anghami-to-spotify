@@ -128,7 +128,7 @@ const uploadToSpotify = async () => {
                     const spotifyTrackId = await searchTrackOnSpotify(song.title, song.artist);
                     spotifyTracksIds.push(spotifyTrackId.uri);
                 } catch (e) {
-                    console.error(song.title + ' by ' + song.artist + ' was not found on spotify!');
+                    console.error(`${song.title} by ${song.artist} was not found on Spotify!`);
                 }
             }
             await addTracksToSpotifyPlaylist(spotifyPlaylistId, spotifyTracksIds);
