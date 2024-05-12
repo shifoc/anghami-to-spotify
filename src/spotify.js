@@ -32,9 +32,9 @@ const spotifyApi = new SpotifyWebApi({
 });
 
 // Create a playlist on Spotify
-const createPlaylistOnSpotify = async (playlistName) => {
+const createPlaylistOnSpotify = async (playlistName, playlistDescription = '') => {
     // Create playlist
-    const playlist = await spotifyApi.createPlaylist(playlistName, { 'description': '', 'public': false });
+    const playlist = await spotifyApi.createPlaylist(playlistName, { 'description': playlistDescription ?? '', 'public': false });
     return playlist.body.id; // Return Spotify playlist ID
 };
 
@@ -85,41 +85,55 @@ const uploadToSpotify = async () => {
         return;
     }
     console.log('Filtering out playlists not created by you...');
-    anghamiPlaylists = anghamiPlaylists.filter(playlist => playlist.ownerID === playlist.userID && playlist.playlistName !== '$1234567890DOWNLOADED#' && playlist.playlistName !== '$1234567890ACRED#');
+    const excludedPlaylistNames = new Set([
+        '$1234567890DOWNLOADED#',
+        '$1234567890ACRED#',
+        '$1234567890PODCASTS#',
+        '$1234567890LOCALSONGS#'
+    ]);
+
+    anghamiPlaylists = anghamiPlaylists.filter(playlist =>
+        playlist.ownerID === playlist.userID &&
+        !excludedPlaylistNames.has(playlist.playlistName)
+    );
     console.log(`Uploading ${anghamiPlaylists.length} playlists to Spotify...`);
     // Create a Spotify playlist for each Anghami playlist
     for (const anghamiPlaylist of anghamiPlaylists) {
-        if (anghamiPlaylist.playlistName === '$1234567890LIKED#') {
-            try {
-                await saveTracks(anghamiPlaylist.songs);
-                console.log('Uploaded liked tracks to Spotify!');
-            } catch (e) {
-                console.error('Error saving liked tracks:', e);
-            }
-            continue;
-        }
-        const spotifyPlaylistId = await createPlaylistOnSpotify(anghamiPlaylist.playlistName);
         try {
-            if (anghamiPlaylist.coverArt) await spotifyApi.uploadCustomPlaylistCoverImage(spotifyPlaylistId, anghamiPlaylist.coverArt);
-        } catch (e) {
-            console.error('Error uploading playlist cover image:', e);
-        }
-        const spotifyTracksIds = [];
-        // Loop through songs in the Anghami playlist
-        for (const song of anghamiPlaylist.songs) {
-            try {
-                // Search for the song on Spotify
-                const spotifyTrackId = await searchTrackOnSpotify(song.title, song.artist);
-                spotifyTracksIds.push(spotifyTrackId.uri);
-            } catch (e) {
-                console.error(song.title + ' by ' + song.artist + ' was not found on spotify!');
+            console.log('--------------------------------------------------------');
+            console.log('Uploading playlist:', anghamiPlaylist.playlistName, 'which has', anghamiPlaylist.songs.length, 'songs.');
+            if (anghamiPlaylist.playlistName === '$1234567890LIKED#') {
+                try {
+                    await saveTracks(anghamiPlaylist.songs);
+                    console.log('Uploaded liked tracks to Spotify!');
+                } catch (e) {
+                    console.error('Error saving liked tracks:', e);
+                }
+                continue;
             }
+            const spotifyPlaylistId = await createPlaylistOnSpotify(anghamiPlaylist.playlistName);
+            try {
+                if (anghamiPlaylist.coverArt) await spotifyApi.uploadCustomPlaylistCoverImage(spotifyPlaylistId, anghamiPlaylist.coverArt);
+            } catch (e) {
+                console.error('Error uploading playlist cover image:', e);
+            }
+            const spotifyTracksIds = [];
+            // Loop through songs in the Anghami playlist
+            for (const song of anghamiPlaylist.songs) {
+                try {
+                    // Search for the song on Spotify
+                    const spotifyTrackId = await searchTrackOnSpotify(song.title, song.artist);
+                    spotifyTracksIds.push(spotifyTrackId.uri);
+                } catch (e) {
+                    console.error(song.title + ' by ' + song.artist + ' was not found on spotify!');
+                }
+            }
+            // Add the track to the Spotify playlist
+            await addTracksToSpotifyPlaylist(spotifyPlaylistId, spotifyTracksIds);
+            console.info(`Playlist "${anghamiPlaylist.playlistName}" uploaded to Spotify.`);
+        } catch (e) {
+            console.error('Error uploading playlist ', anghamiPlaylist.playlistName, ':', e);
         }
-        // Add the track to the Spotify playlist
-        await addTracksToSpotifyPlaylist(spotifyPlaylistId, spotifyTracksIds);
-        console.log('--------------------------------------------------------');
-        console.info(`Playlist "${anghamiPlaylist.playlistName}" uploaded to Spotify.`);
-        console.log('--------------------------------------------------------');
     }
 };
 
@@ -132,7 +146,7 @@ app.get('/login', (req, res) => {
 app.get('/callback', async (req, res) => {
     const error = req.query.error;
     const code = req.query.code;
-    const state = req.query.state;
+    // const state = req.query.state;
 
     if (error) {
         console.error('Callback Error:', error);

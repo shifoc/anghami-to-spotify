@@ -4,6 +4,7 @@ const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 puppeteer.use(StealthPlugin());
 const { writeFileSync } = require('fs');
 const sharp = require('sharp');
+const protoDecoder = require('./anghami_bufferDecoder');
 
 const login = async () => {
     const browser = await puppeteer.launch({
@@ -82,6 +83,54 @@ const anghamiCrawler = async () => {
     await detailsGetter(SID);
 };
 
+function base64ToBytes(base64String) {
+    const buffer = Buffer.from(base64String, 'base64');
+    return new Uint8Array(buffer);
+}
+
+function handleBufferedResponse(data) {
+    if ("GETplaylistdata" === data.responsetype) {
+        try {
+            const playlistTypes = ["$1234567890PODCASTS#", "$1234567890LIKED#", "$1234567890DOWNLOADED#", "$1234567890LOCALSONGS#"];
+            const songResponses = data.songbuffers
+                .map(base64ToBytes)
+                .map(buffer => protoDecoder.src.SongBatchResponse.decode(buffer).response)
+                .map(response => Object.keys(response).map(key => [key, response[key]]).map(entry => {
+                    const songData = entry[1];
+                    return { ...songData, songIdInMap: entry[0] };
+                }))
+                .reduce((accumulator, currentValue) => accumulator.concat(currentValue), [])
+                .map(songData => ({
+                    ...songData,
+                    coverArt: songData.coverArt,
+                    artistID: songData.artistID,
+                    albumArt: songData.albumArt,
+                    albumID: songData.albumID,
+                    isPodcast: songData.isPodcast ? 1 : undefined,
+                    artistGender: songData.artistGender || 0,
+                    lyrics: songData.hasLyrics
+                }))
+                .reduce((map, song) => map.set(song.songIdInMap, song), new Map());
+
+            const processedSongs = new Map();
+            const songOrder = data.songorder.split(",");
+            songOrder.reverse();
+            const orderedSongs = songOrder.map(songId => {
+                const song = songResponses.get(songId);
+                return !song || processedSongs.get(song?.id) ? null : (songResponses.set(songId, null), processedSongs.set(song.id, true), song);
+            }).filter(song => !!song);
+            if (playlistTypes.indexOf(data.playlistName) <= -1) orderedSongs.reverse();
+            data.numSongs = orderedSongs.length;
+            data.playlistCount = orderedSongs.length;
+            const bufferedSection = data.sections.find(section => section.buffered);
+            bufferedSection.data.push(...orderedSongs);
+            return data;
+        } catch (error) {
+            console.error("Decoding song buffer error: ", error);
+        }
+    }
+}
+
 const detailsGetter = async (SID) => {
     const optionsCreator = (params) => {
         return {
@@ -121,11 +170,11 @@ const detailsGetter = async (SID) => {
         const options = optionsCreator({
             angh_type: 'GETplaylistdata',
             type: 'GETplaylistdata',
-            // buffered: 1,
+            buffered: 1,
             playlistid
         });
         const { data } = await axios(options);
-        return data;
+        return data.responsemode === 'buffered' ? handleBufferedResponse(data) : data;
     };
 
     const fetchAndEncodeImage = async (imageId) => {
