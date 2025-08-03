@@ -33,6 +33,6 @@ ANGHAMI_PASSWORD="YOUR_PASSWORD"
 From a console shell:
 
 ```bash
-node run start
+npm run start
 ```
 Then open http://localhost:3000 in your browser and follow the instructions.
